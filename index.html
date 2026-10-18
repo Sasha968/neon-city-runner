@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Neon City Runner</title>
+<style>
+  body { margin: 0; overflow: hidden; font-family: sans-serif; touch-action: none; }
+  #score { position: absolute; top: 10px; left: 10px; color: #00ffff;
+           font-size: 24px; text-shadow: 0 0 10px #00ffff; z-index: 10; font-weight: bold; }
+  #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+             color: #ff00ff; font-size: 30px; text-shadow: 0 0 15px #ff00ff; text-align: center; }
+</style>
+</head>
+<body>
+<div id="score">SCORE: 0</div>
+<div id="loading">LOADING CITY...</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const scene = new THREE.Scene();
+// Фиолетово-розовое небо как на картинке
+scene.background = new THREE.Color(0x2a0044);
+scene.fog = new THREE.Fog(0x2a0044, 40, 180);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Тёплый общий свет
+scene.add(new THREE.AmbientLight(0x663399, 0.6));
+
+// Красный свет сверху (как на картинке)
+const redLight = new THREE.DirectionalLight(0xff3366, 0.8);
+redLight.position.set(0, 20, 10);
+scene.add(redLight);
+
+// Розовый свет
+const pinkLight = new THREE.DirectionalLight(0xff00ff, 0.5);
+pinkLight.position.set(5, 10, 5);
+scene.add(pinkLight);
+
+// Голубой свет с другой стороны
+const blueLight = new THREE.DirectionalLight(0x00ffff, 0.4);
+blueLight.position.set(-5, 8, -5);
+scene.add(blueLight);
+
+// МОКРАЯ ДОРОГА с отражениями (высокий metalness)
+const road = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 4000),
+  new THREE.MeshStandardMaterial({color: 0x111122, roughness: 0.1, metalness: 0.9})
+);
+road.rotation.x = -Math.PI/2;
+road.position.z = -1900;
+road.receiveShadow = true;
+scene.add(road);
+
+// Белая разметка дороги
+for (let i = 0; i < 150; i++) {
+  const line = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.2, 3),
+    new THREE.MeshBasicMaterial({color: 0xffffff})
+  );
+  line.rotation.x = -Math.PI/2;
+  line.position.set(0, 0.01, -i * 25);
+  scene.add(line);
+}
+
+// ЗДАНИЯ по бокам (высокие, как на картинке)
+const buildingColors = [0x1a0033, 0x220044, 0x0a0022, 0x330055];
+const neonColors = [0xff00ff, 0x00ffff, 0xff3366, 0xffaa00, 0x00ff66];
+
+function createBuilding(x, z, height, width, depth) {
+  const color = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+  const building = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshStandardMaterial({color: color, roughness: 0.7, metalness: 0.3})
+  );
+  building.position.set(x, height/2, z);
+  building.castShadow = true;
+  building.receiveShadow = true;
+  scene.add(building);
+  
+  // Неоновые окна (горизонтальные полосы света)
+  const floors = Math.floor(height / 3);
+  for (let f = 0; f < floors; f++) {
+    if (Math.random() > 0.4) {
+      const neonColor = neonColors[Math.floor(Math.random() * neonColors.length)];
+      const windowStrip = new THREE.Mesh(
+        new THREE.PlaneGeometry(width * 0.9, 0.3),
+        new THREE.MeshBasicMaterial({color: neonColor})
+      );
+      const side = x < 0 ? 1 : -1;
+      windowStrip.position.set(x + side * (width/2 + 0.01), f * 3 + 2, z);
+      if (side > 0) windowStrip.rotation.y = Math.PI/2;
+      else windowStrip.rotation.y = -Math.PI/2;
+      scene.add(windowStrip);
+    }
+  }
+  
+  // Большой неоновый билборд на некоторых зданиях
+  if (Math.random() > 0.6 && height > 20) {
+    const billboard = new THREE.Mesh(
+      new THREE.PlaneGeometry(width * 0.7, 4),
+      new THREE.MeshBasicMaterial({
+        color: neonColors[Math.floor(Math.random() * neonColors.length)]
+      })
+    );
+    const side = x < 0 ? 1 : -1;
+    billboard.position.set(x + side * (width/2 + 0.02), height * 0.7, z);
+    if (side > 0) billboard.rotation.y = Math.PI/2;
+    else billboard.rotation.y = -Math.PI/2;
+    scene.add(billboard);
+    
+    // Свет от билборда
+    const bLight = new THREE.PointLight(
+      neonColors[Math.floor(Math.random() * neonColors.length)], 1, 15
+    );
+    bLight.position.set(x + side * (width/2 + 1), height * 0.7, z);
+    scene.add(bLight);
+  }
+}
+
+// Создаём город: здания с обеих сторон
+for (let i = 0; i < 80; i++) {
+  const z = -i * 25;
+  const leftHeight = 15 + Math.random() * 25;
+  const rightHeight = 15 + Math.random() * 25;
+  createBuilding(-12, z, leftHeight, 6, 20);
+  createBuilding(12, z, rightHeight, 6, 20);
+  
+  // Иногда добавляем ещё ряд зданий дальше
+  if (Math.random() > 0.5) {
+    createBuilding(-20, z - 10, 20 + Math.random() * 20, 8, 20);
+    createBuilding(20, z - 10, 20 + Math.random() * 20, 8, 20);
+  }
+}
+
+// ЛЕТАЮЩИЕ ДРОНЫ/МАШИНЫ в небе (как на картинке)
+const drones = [];
+for (let i = 0; i < 20; i++) {
+  const drone = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.5, 1.5),
+    new THREE.MeshBasicMaterial({color: 0xff3366})
+  );
+  drone.position.set(
+    (Math.random() - 0.5) * 20,
+    20 + Math.random() * 15,
+    -Math.random() * 200
+  );
+  scene.add(drone);
+  drones.push({mesh: drone, speed: 0.02 + Math.random() * 0.03});
+  
+  // Красный огонёк дрона
+  const light = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2),
+    new THREE.MeshBasicMaterial({color: 0xff0000})
+  );
+  light.position.copy(drone.position);
+  light.position.y -= 0.3;
+  scene.add(light);
+  drones[i].light = light;
+}
+
+// Неоновые столбы вдоль дороги
+for (let i = 0; i < 40; i++) {
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 5),
+    new THREE.MeshStandardMaterial({color: 0x333333})
+  );
+  pole.position.set(-7.5, 2.5, -i * 50);
+  scene.add(pole);
+  
+  const neon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25),
+    new THREE.MeshBasicMaterial({color: 0xff00ff})
+  );
+  neon.position.set(-7.5, 5, -i * 50);
+  scene.add(neon);
+  
+  const pole2 = pole.clone();
+  pole2.position.x = 7.5;
+  scene.add(pole2);
+  
+  const neon2 = neon.clone();
+  neon2.position.x = 7.5;
+  neon2.material = new THREE.MeshBasicMaterial({color: 0x00ffff});
+  scene.add(neon2);
+}
+
+const lanes = [-2, 0, 2];
+let currentLane = 1;
+let targetX = 0;
+let player, isJumping = false, velocityY = 0, runTime = 0;
+
+const loader = new THREE.GLTFLoader();
+loader.load('player_colored.glb', gltf => {
+  player = gltf.scene;
+  player.scale.set(1.2, 1.2, 1.2);
+  player.position.set(0, 0, 0);
+  player.rotation.y = Math.PI;
+  player.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; } });
+  scene.add(player);
+  document.getElementById('loading').style.display = 'none';
+  animate();
+}, undefined, () => { document.getElementById('loading').textContent = 'ERROR!'; });
+
+const obstacles = [];
+function spawnObstacle() {
+  const lane = Math.floor(Math.random() * 3);
+  const obs = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 1.5, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0xff00ff, emissiveIntensity: 0.8 })
+  );
+  obs.position.set(lanes[lane], 0.75, -100);
+  scene.add(obs);
+  obstacles.push(obs);
+}
+
+let speed = 0.8, score = 0, gameOver = false, gameStarted = false;
+
+document.addEventListener('keydown', e => {
+  if (gameOver && e.key.toLowerCase() === 'r') location.reload();
+  if (!gameStarted) return;
+  if ((e.key === 'ArrowLeft' || e.key === 'a') && currentLane > 0) currentLane--;
+  if ((e.key === 'ArrowRight' || e.key === 'd') && currentLane < 2) currentLane++;
+  if (e.key === ' ' && !isJumping) { isJumping = true; velocityY = 0.5; }
+  targetX = lanes[currentLane];
+});
+
+let touchStartX = 0, touchStartY = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; });
+document.addEventListener('touchend', e => {
+  if (gameOver) { location.reload(); return; }
+  if (!gameStarted) return;
+  const diffX = e.changedTouches[0].clientX - touchStartX;
+  const diffY = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(diffX) > Math.abs(diffY)) {
+    if (diffX > 30 && currentLane < 2) currentLane++;
+    else if (diffX < -30 && currentLane > 0) currentLane--;
+  } else {
+    if (diffY < -30 && !isJumping) { isJumping = true; velocityY = 0.5; }
+  }
+  targetX = lanes[currentLane];
+});
+
+let spawnTimer = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  if (player && !gameOver) {
+    gameStarted = true;
+    runTime += 0.15;
+    player.position.x += (targetX - player.position.x) * 0.2;
+
+    // Движение дронов
+    drones.forEach(d => {
+      d.mesh.position.z += d.speed;
+      d.light.position.z += d.speed;
+      if (d.mesh.position.z > 10) {
+        d.mesh.position.z = -200;
+        d.light.position.z = -200;
+      }
+    });
+
+    if (!isJumping) {
+      player.position.y = Math.abs(Math.sin(runTime * 2)) * 0.1;
+      player.rotation.x = 0.1 + Math.sin(runTime) * 0.05;
+      player.rotation.z = Math.sin(runTime * 2) * 0.08;
+    } else {
+      player.position.y += velocityY;
+      velocityY -= 0.04;
+      if (player.position.y <= 0) { player.position.y = 0; isJumping = false; velocityY = 0; }
+    }
+
+    obstacles.forEach(o => o.position.z += speed);
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      if (obstacles[i].position.z > 5) { scene.remove(obstacles[i]); obstacles.splice(i, 1); score++; speed += 0.004; }
+    }
+    spawnTimer++;
+    if (spawnTimer > 40) { spawnObstacle(); spawnTimer = 0; }
+
+    obstacles.forEach(o => {
+      if (Math.abs(o.position.x - player.position.x) < 1 && Math.abs(o.position.z - player.position.z) < 1 && player.position.y < 1.5) {
+        gameOver = true;
+        document.getElementById('score').textContent = 'GAME OVER! Score: ' + score;
+      }
+    });
+
+    camera.position.set(player.position.x * 0.3, 3.5, player.position.z + 6);
+    camera.lookAt(player.position.x, 1, player.position.z - 5);
+    document.getElementById('score').textContent = 'SCORE: ' + score;
+  }
+  renderer.render(scene, camera);
+}
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
